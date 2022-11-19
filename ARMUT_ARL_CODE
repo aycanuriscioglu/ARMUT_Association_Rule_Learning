@@ -1,0 +1,52 @@
+import pandas as pd
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 500)
+pd.set_option('display.expand_frame_repr', False)
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from mlxtend.frequent_patterns import apriori, association_rules
+import seaborn as sns
+
+
+df = pd.read_csv("datasets/armut_data.csv", low_memory=False)  # DtypeWarning kapamak icin
+df.head()
+df.shape
+df.dtypes
+df.isnull().sum()
+
+df.groupby("ServiceId")["CategoryId"].mean()
+
+df["ServiceId"]=df["ServiceId"].astype(str)
+df["CategoryId"]=df["CategoryId"].astype(str)
+df["Sevice"]= [col[1] + "_" + col[2] for col in df.values]
+
+df["CreateDate"]=df["CreateDate"].apply(pd.to_datetime)
+df["Date"] = df["CreateDate"].dt.strftime("%Y-%m")
+df["UserId"]=df["UserId"].astype(str)
+
+df["SepetID"] =[col[0] + "_" + col[5] for col in df.values]
+
+df.groupby(["SepetID","Sevice"])["CategoryId"].count().unstack()
+df_r=df.groupby(["SepetID","Sevice"])["CategoryId"].count().unstack().fillna(0).applymap(lambda x: 1 if x>0 else 0)
+
+df_r = apriori(df_r,
+               min_support=0.01,
+               use_colnames=True)
+
+df_r.sort_values("support", ascending=False)
+
+rules = association_rules(df_r, metric="support", min_threshold=0.01)
+sorted_rules = rules.sort_values("lift",ascending=False)
+
+def arl_recommender(rules, Sevice, rec_count=1):
+    sorted_rules = rules.sort_values("lift", ascending=False)
+    recommendation_list = []
+    for i, product in enumerate(sorted_rules["antecedents"]):
+        for j in list(product):
+            if j == Sevice:
+                recommendation_list.append(list(sorted_rules.iloc[i]["consequents"])[0])
+
+    return recommendation_list[0:rec_count]
+
+
+arl_recommender(rules, "2_0", 2)
